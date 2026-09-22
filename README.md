@@ -35,6 +35,7 @@ It'll then open full-screen with its own icon, with no browser bar.
 - `manifest.json` — tells the browser CYPHER is installable (name, icons, colors)
 - `service-worker.js` — makes the app installable and lets it load when offline
 - `icon-192.png`, `icon-512.png`, `icon-180.png`, `icon-32.png` — app icons at various sizes
+- `icon-192-maskable.png`, `icon-512-maskable.png` — padded versions of the icon used by Android's adaptive/maskable icon system, so the logo isn't cropped or scaled blurry on the home screen
 
 All five files must sit in the same folder (repo root) for install to work — the paths inside `manifest.json` and `index.html` assume that.
 

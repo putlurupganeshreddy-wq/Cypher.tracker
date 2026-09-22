@@ -448,18 +448,6 @@ input[type=range]{width:100%; accent-color:var(--accent);}
         <div class="switch" id="themeSwitch"><div class="knob"></div></div>
       </div>
     </div>
-    <div class="section-title">Backup</div>
-    <div class="card fade-in">
-      <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:14px;">
-        Save your attendance and study history to a file, or restore it later — useful before reinstalling the app or switching phones.
-      </div>
-      <div class="grid grid-2" style="gap:10px;">
-        <button class="ghost-btn" id="exportBtn">⬇ Export Data</button>
-        <button class="ghost-btn" id="importBtn">⬆ Import Data</button>
-      </div>
-      <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
-      <div id="backupMsg" style="margin-top:10px;font-size:12.5px;color:var(--ink-soft);"></div>
-    </div>
   </section>
 
 </div>
@@ -1148,85 +1136,6 @@ document.getElementById("soundSwitch").addEventListener("click", ()=>{
 document.getElementById("themeSwitch").addEventListener("click", ()=>{
   document.getElementById("themeToggle").click();
 });
-document.getElementById("exportBtn").addEventListener("click", ()=>{
-  sound("tap");
-  const payload = {
-    app: "CYPHER",
-    exportedAt: new Date().toISOString(),
-    version: 1,
-    data: DATA
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const stamp = dateKey(new Date());
-  a.href = url;
-  a.download = "cypher-backup-"+stamp+".json";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url), 2000);
-  const msg = document.getElementById("backupMsg");
-  msg.textContent = "Backup file downloaded.";
-  msg.style.color = "var(--green-text)";
-});
-
-document.getElementById("importBtn").addEventListener("click", ()=>{
-  sound("tap");
-  document.getElementById("importFile").click();
-});
-document.getElementById("importFile").addEventListener("change", (e)=>{
-  const file = e.target.files && e.target.files[0];
-  e.target.value = "";
-  if(!file) return;
-  const msg = document.getElementById("backupMsg");
-  const reader = new FileReader();
-  reader.onload = () => {
-    let parsed;
-    try{
-      parsed = JSON.parse(reader.result);
-    }catch(err){
-      msg.textContent = "That file isn't a valid CYPHER backup.";
-      msg.style.color = "var(--red-text)";
-      return;
-    }
-    const incoming = (parsed && parsed.data && typeof parsed.data === "object") ? parsed.data : parsed;
-    const looksValid = incoming && (typeof incoming.attendance === "object") && (typeof incoming.study === "object");
-    if(!looksValid){
-      msg.textContent = "That file isn't a valid CYPHER backup.";
-      msg.style.color = "var(--red-text)";
-      return;
-    }
-    confirmModal(
-      "Restore this backup?",
-      "This replaces your current attendance and study data with the contents of the backup file. This cannot be undone.",
-      ()=>{
-        DATA = {
-          attendance: incoming.attendance || {},
-          study: incoming.study || {},
-          theme: incoming.theme !== undefined ? incoming.theme : DATA.theme,
-          sound: incoming.sound !== undefined ? incoming.sound : DATA.sound,
-          goal: incoming.goal !== undefined ? incoming.goal : DATA.goal,
-          firstLaunch: false
-        };
-        saveData();
-        applyTheme();
-        renderHeader();
-        renderSettingsView();
-        renderAllSummaries();
-        renderDayView();
-        msg.textContent = "Backup restored.";
-        msg.style.color = "var(--green-text)";
-      }
-    );
-  };
-  reader.onerror = () => {
-    msg.textContent = "Couldn't read that file.";
-    msg.style.color = "var(--red-text)";
-  };
-  reader.readAsText(file);
-});
-
 document.getElementById("clearAllBtn").addEventListener("click", ()=>{
   confirmModal("Clear all data?", "This permanently deletes every attendance and study record. This cannot be undone.", ()=>{
     DATA.attendance = {}; DATA.study = {}; saveData();
