@@ -734,14 +734,14 @@ function renderGoalCard(el, agg, totalPct){
   const now = new Date();
   if(now.getDay()===0){
     el.innerHTML = '<b style="display:block;margin-bottom:6px;">SUNDAY — NO REGULAR CLASSES</b>'+
-      '<div style="color:var(--ink-soft);font-size:13.5px;line-height:1.6;">Your goal doesn\\'t take a day off. Use your time wisely.</div>';
+      '<div style="color:var(--ink-soft);font-size:13.5px;line-height:1.6;">Your goal does not take a day off. Use your time wisely.</div>';
     return;
   }
   let goalLine = "";
   if(totalPct!=null){
     const goal = DATA.goal;
     if(totalPct>=goal){
-      goalLine = 'You\\'re at <b>'+totalPct+'%</b>, above your '+goal+'% goal. Keep it up.';
+      goalLine = 'You are at <b>'+totalPct+'%</b>, above your '+goal+'% goal. Keep it up.';
     } else {
       const P=agg.totalPresent, A=agg.totalAbsent;
       const denom = 100-goal;
@@ -752,7 +752,7 @@ function renderGoalCard(el, agg, totalPct){
   } else {
     goalLine = "Mark your first class to start tracking your goal.";
   }
-  el.innerHTML = '<div style="font-size:13.5px;line-height:1.7;">Attend your classes.<br>Complete your study session.<br>Don\\'t waste time.</div>'+
+  el.innerHTML = '<div style="font-size:13.5px;line-height:1.7;">Attend your classes.<br>Complete your study session.<br>Do not waste time.</div>'+
     '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-soft);">'+goalLine+'</div>';
 }
 
