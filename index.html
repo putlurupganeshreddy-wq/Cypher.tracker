@@ -448,6 +448,29 @@ input[type=range]{width:100%; accent-color:var(--accent);}
         <div class="switch" id="themeSwitch"><div class="knob"></div></div>
       </div>
     </div>
+    <div class="section-title">Holidays</div>
+    <div class="card fade-in">
+      <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:12px;">
+        Mark festival or long holiday dates — Dussehra, term breaks, and so on. Those dates are then treated as no-class days, just like Sunday.
+      </div>
+      <input type="text" id="holidayLabel" placeholder="Holiday name (e.g. Dussehra)"
+        style="width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:13px;margin-bottom:10px;">
+      <div class="grid grid-2" style="gap:8px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:11px;color:var(--ink-faint);font-weight:600;">From</label>
+          <input type="date" id="holidayStart"
+            style="width:100%;padding:11px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:13px;margin-top:4px;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--ink-faint);font-weight:600;">To (optional)</label>
+          <input type="date" id="holidayEnd"
+            style="width:100%;padding:11px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:13px;margin-top:4px;">
+        </div>
+      </div>
+      <button class="btn-primary" id="addHolidayBtn" style="width:100%;">Add Holiday</button>
+      <div id="holidayMsg" style="margin-top:8px;font-size:12px;color:var(--ink-soft);"></div>
+      <div id="holidayList" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
     <div class="section-title">Backup</div>
     <div class="card fade-in">
       <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:14px;">
@@ -533,9 +556,10 @@ function loadData(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return {attendance:{}, study:{}, theme:null, sound:true, goal:75, firstLaunch:true};
+  return {attendance:{}, study:{}, theme:null, sound:true, goal:75, firstLaunch:true, holidays:{}};
 }
 let DATA = loadData();
+if(!DATA.holidays) DATA.holidays = {};
 function saveData(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); }catch(e){}
 }
@@ -546,18 +570,26 @@ function dateKey(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.ge
 function keyToDate(k){ const p=k.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); }
 function sameDay(a,b){ return dateKey(a)===dateKey(b); }
 function fmtLong(d){ return DOW_NAMES[d.getDay()]+", "+d.getDate()+" "+d.toLocaleString('en-US',{month:'long'})+" "+d.getFullYear(); }
+function fmtShort(d){ return d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}); }
 function round1(n){ return Math.round(n*10)/10; }
 function safePct(present,absent){
   const working = present+absent;
   if(working<=0) return null;
   return round1((present/working)*100);
 }
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 let viewingDate = new Date(); // for day-view navigation
 let currentView = "dashboard";
 
 /* ===================== AGGREGATION ===================== */
-function getDayTimetable(d){ return TIMETABLE[d.getDay()] || []; }
+function isHoliday(d){ return DATA.holidays[dateKey(d)] || null; }
+function getDayTimetable(d){
+  if(isHoliday(d)) return [];
+  return TIMETABLE[d.getDay()] || [];
+}
 
 function computeAll(){
   const subjTotals = {}; ALL_SUBJECTS.forEach(s=>subjTotals[s]={present:0,absent:0});
@@ -741,8 +773,10 @@ function labelForStudy(st){
 
 function renderGoalCard(el, agg, totalPct){
   const now = new Date();
-  if(now.getDay()===0){
-    el.innerHTML = '<b style="display:block;margin-bottom:6px;">SUNDAY — NO REGULAR CLASSES</b>'+
+  const holidayName = isHoliday(now);
+  if(now.getDay()===0 || holidayName){
+    const label = holidayName ? ("🎉 HOLIDAY — "+escapeHtml(holidayName).toUpperCase()) : "SUNDAY — NO REGULAR CLASSES";
+    el.innerHTML = '<b style="display:block;margin-bottom:6px;">'+label+'</b>'+
       '<div style="color:var(--ink-soft);font-size:13.5px;line-height:1.6;">Your goal does not take a day off. Use your time wisely.</div>';
     return;
   }
@@ -833,6 +867,7 @@ function renderDayView(){
   const tt = getDayTimetable(d);
   const today = new Date();
   const isToday = sameDay(d, today);
+  const holidayName = isHoliday(d);
 
   let html = '<div class="day-header">'+
     '<button class="arrow" id="dayPrev">‹</button>'+
@@ -840,7 +875,13 @@ function renderDayView(){
     '<button class="arrow" id="dayNext">›</button></div>';
 
   if(tt.length===0){
-    html += '<div class="empty-note">SUNDAY — NO CLASS DAY<br><br>No classes scheduled.</div>';
+    if(holidayName){
+      html += '<div class="empty-note">🎉 HOLIDAY — '+escapeHtml(holidayName).toUpperCase()+'<br><br>No classes scheduled.</div>';
+    } else if(d.getDay()===0){
+      html += '<div class="empty-note">SUNDAY — NO CLASS DAY<br><br>No classes scheduled.</div>';
+    } else {
+      html += '<div class="empty-note">No classes scheduled.</div>';
+    }
   } else {
     const rec = DATA.attendance[k] || {};
     tt.forEach((slot,idx)=>{
@@ -935,11 +976,13 @@ function renderStudyView(){
     const row = document.createElement("div");
     row.className = "weekrow";
     let label, color;
-    if(dow===0){
+    const holidayName = isHoliday(d);
+    if(dow===0 || holidayName){
+      const prefix = holidayName ? (escapeHtml(holidayName)+" · ") : "";
       const v = DATA.study[k];
-      if(v==="present"){label="2h completed"; color="var(--green-text)";}
-      else if(v==="absent"){label="Missed"; color="var(--red-text)";}
-      else {label="Optional / no study"; color="var(--ink-soft)";}
+      if(v==="present"){label=prefix+"2h completed"; color="var(--green-text)";}
+      else if(v==="absent"){label=prefix+"Missed"; color="var(--red-text)";}
+      else {label=prefix+"Optional / no study"; color="var(--ink-soft)";}
     } else {
       const v = DATA.study[k];
       if(v==="present"){label="2h / Completed"; color="var(--green-text)";}
@@ -1049,6 +1092,60 @@ function renderSettingsView(){
   else goalMsg.textContent = "Below the typical 75% minimum — consider raising it.";
   document.getElementById("soundSwitch").classList.toggle("on", DATA.sound);
   document.getElementById("themeSwitch").classList.toggle("on", DATA.theme==="dark");
+  renderHolidayList();
+}
+
+/* group consecutive same-label holiday dates into ranges for display */
+function groupHolidays(){
+  const entries = Object.keys(DATA.holidays).sort();
+  const groups = [];
+  let cur = null;
+  entries.forEach(k=>{
+    const label = DATA.holidays[k];
+    if(cur && cur.label===label && dateKey(addDays(keyToDate(cur.end),1))===k){
+      cur.end = k;
+    } else {
+      if(cur) groups.push(cur);
+      cur = {label, start:k, end:k};
+    }
+  });
+  if(cur) groups.push(cur);
+  return groups;
+}
+function renderHolidayList(){
+  const el = document.getElementById("holidayList");
+  if(!el) return;
+  const groups = groupHolidays().sort((a,b)=> a.start < b.start ? 1 : -1);
+  if(groups.length===0){
+    el.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);">No holidays added yet.</div>';
+    return;
+  }
+  el.innerHTML = groups.map(g=>{
+    const rangeText = g.start===g.end
+      ? fmtShort(keyToDate(g.start))
+      : (fmtShort(keyToDate(g.start))+' – '+fmtShort(keyToDate(g.end)));
+    return '<div class="weekrow"><span><b style="font-weight:700;">'+escapeHtml(g.label)+'</b><br>'+
+      '<span style="font-size:11px;color:var(--ink-soft);">'+rangeText+'</span></span>'+
+      '<button class="icon-btn holiday-remove" data-start="'+g.start+'" data-end="'+g.end+'" style="width:30px;height:30px;font-size:13px;">✕</button></div>';
+  }).join("");
+  el.querySelectorAll(".holiday-remove").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const start = btn.getAttribute("data-start");
+      const end = btn.getAttribute("data-end");
+      confirmModal("Remove holiday?", "This restores the normal timetable for these dates.", ()=>{
+        let d = keyToDate(start);
+        const endD = keyToDate(end);
+        while(d.getTime() <= endD.getTime()){
+          delete DATA.holidays[dateKey(d)];
+          d = addDays(d,1);
+        }
+        saveData();
+        renderHolidayList();
+        renderAllSummaries();
+        renderDayView();
+      });
+    });
+  });
 }
 
 /* ===================== MODAL ===================== */
@@ -1148,6 +1245,36 @@ document.getElementById("soundSwitch").addEventListener("click", ()=>{
 document.getElementById("themeSwitch").addEventListener("click", ()=>{
   document.getElementById("themeToggle").click();
 });
+document.getElementById("addHolidayBtn").addEventListener("click", ()=>{
+  const labelInput = document.getElementById("holidayLabel");
+  const startInput = document.getElementById("holidayStart");
+  const endInput = document.getElementById("holidayEnd");
+  const msg = document.getElementById("holidayMsg");
+  const label = labelInput.value.trim();
+  const startVal = startInput.value;
+  const endVal = endInput.value || startInput.value;
+  if(!label){ msg.textContent = "Give the holiday a name."; msg.style.color = "var(--red-text)"; return; }
+  if(!startVal){ msg.textContent = "Pick a start date."; msg.style.color = "var(--red-text)"; return; }
+  const startD = keyToDate(startVal);
+  const endD = keyToDate(endVal);
+  if(endD.getTime() < startD.getTime()){ msg.textContent = "End date must be on or after the start date."; msg.style.color = "var(--red-text)"; return; }
+  if((endD.getTime() - startD.getTime()) / 86400000 > 60){ msg.textContent = "That's over 60 days — please add shorter ranges."; msg.style.color = "var(--red-text)"; return; }
+  let d = startD, count = 0;
+  while(d.getTime() <= endD.getTime()){
+    DATA.holidays[dateKey(d)] = label;
+    d = addDays(d, 1);
+    count++;
+  }
+  saveData();
+  sound("tap");
+  labelInput.value = ""; startInput.value = ""; endInput.value = "";
+  msg.textContent = "Added "+count+" day"+(count>1?"s":"")+" as \""+label+"\".";
+  msg.style.color = "var(--green-text)";
+  renderHolidayList();
+  renderAllSummaries();
+  renderDayView();
+});
+
 document.getElementById("exportBtn").addEventListener("click", ()=>{
   sound("tap");
   const payload = {
@@ -1207,6 +1334,7 @@ document.getElementById("importFile").addEventListener("change", (e)=>{
           theme: incoming.theme !== undefined ? incoming.theme : DATA.theme,
           sound: incoming.sound !== undefined ? incoming.sound : DATA.sound,
           goal: incoming.goal !== undefined ? incoming.goal : DATA.goal,
+          holidays: incoming.holidays || {},
           firstLaunch: false
         };
         saveData();
