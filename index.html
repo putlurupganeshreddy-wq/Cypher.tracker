@@ -586,6 +586,7 @@ let currentView = "dashboard";
 
 /* ===================== AGGREGATION ===================== */
 function isHoliday(d){ return DATA.holidays[dateKey(d)] || null; }
+function isStudyDay(d){ const dow = d.getDay(); return dow>=1 && dow<=5 && !isHoliday(d); }
 function getDayTimetable(d){
   if(isHoliday(d)) return [];
   return TIMETABLE[d.getDay()] || [];
@@ -620,6 +621,7 @@ function computeStudy(){
   let present=0, absent=0, noStudy=0;
   const days = Object.keys(DATA.study);
   days.forEach(k=>{
+    if(!isStudyDay(keyToDate(k))) return; // Sat/Sun/holidays never count
     const st = DATA.study[k];
     if(st==="present") present++;
     else if(st==="absent") absent++;
@@ -756,7 +758,9 @@ function renderDashboard(){
   });
   document.getElementById("dashTodayClass").textContent = todayTT.length? (p+"P / "+a+"A / "+nc+"NC") : "No classes scheduled";
   const studyToday = DATA.study[todayKey];
-  document.getElementById("dashTodayStudy").textContent = studyToday ? labelForStudy(studyToday) : "Not marked yet";
+  document.getElementById("dashTodayStudy").textContent = !isStudyDay(new Date())
+    ? "No study day"
+    : (studyToday ? labelForStudy(studyToday) : "Not marked yet");
 
   renderGoalCard(document.getElementById("dashGoalCard"), agg, totalPct);
 
@@ -977,12 +981,9 @@ function renderStudyView(){
     row.className = "weekrow";
     let label, color;
     const holidayName = isHoliday(d);
-    if(dow===0 || holidayName){
+    if(!isStudyDay(d)){
       const prefix = holidayName ? (escapeHtml(holidayName)+" · ") : "";
-      const v = DATA.study[k];
-      if(v==="present"){label=prefix+"2h completed"; color="var(--green-text)";}
-      else if(v==="absent"){label=prefix+"Missed"; color="var(--red-text)";}
-      else {label=prefix+"Optional / no study"; color="var(--ink-soft)";}
+      label = prefix+"No Study"; color = "var(--ink-soft)";
     } else {
       const v = DATA.study[k];
       if(v==="present"){label="2h / Completed"; color="var(--green-text)";}
@@ -1002,26 +1003,44 @@ function renderStudyTodayCard(){
   const k = dateKey(d);
   const status = DATA.study[k];
   const isToday = sameDay(d,new Date());
+  const studyDay = isStudyDay(d);
+  const holidayName = isHoliday(d);
+
+  let bodyHtml;
+  if(!studyDay){
+    const reason = holidayName ? ("🎉 "+escapeHtml(holidayName)) : (d.getDay()===0 ? "Sunday" : "Saturday");
+    bodyHtml =
+      '<div style="text-align:center;font-weight:700;font-size:15px;margin-bottom:4px;">🌙 NIGHT STUDY</div>'+
+      '<div style="text-align:center;color:var(--ink-soft);font-size:12.5px;margin-bottom:14px;">'+reason+' — no study day</div>'+
+      '<div class="empty-note" style="padding:16px 10px;">No Study</div>';
+  } else {
+    bodyHtml =
+      '<div style="text-align:center;font-weight:700;font-size:15px;margin-bottom:4px;">🌙 NIGHT STUDY</div>'+
+      '<div style="text-align:center;color:var(--ink-soft);font-size:12.5px;margin-bottom:12px;">8:00 PM – 10:00 PM</div>'+
+      '<div class="status-row">'+
+        '<button class="status-btn present '+(status==="present"?"on":"")+'" data-status="present">PRESENT</button>'+
+        '<button class="status-btn absent '+(status==="absent"?"on":"")+'" data-status="absent">ABSENT</button>'+
+        '<button class="status-btn nostudy '+(status==="no_study"?"on":"")+'" data-status="no_study">NO STUDY</button>'+
+      '</div>';
+  }
+
   el.innerHTML = '<div class="day-header" style="margin-bottom:12px;">'+
     '<button class="arrow" id="studyPrev">‹</button>'+
     '<div class="day-title"><b>'+(isToday?"TONIGHT":DOW_NAMES[d.getDay()].toUpperCase())+'</b><span>'+d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})+'</span></div>'+
     '<button class="arrow" id="studyNext">›</button></div>'+
-    '<div style="text-align:center;font-weight:700;font-size:15px;margin-bottom:4px;">🌙 NIGHT STUDY</div>'+
-    '<div style="text-align:center;color:var(--ink-soft);font-size:12.5px;margin-bottom:12px;">8:00 PM – 10:00 PM</div>'+
-    '<div class="status-row">'+
-      '<button class="status-btn present '+(status==="present"?"on":"")+'" data-status="present">PRESENT</button>'+
-      '<button class="status-btn absent '+(status==="absent"?"on":"")+'" data-status="absent">ABSENT</button>'+
-      '<button class="status-btn nostudy '+(status==="no_study"?"on":"")+'" data-status="no_study">NO STUDY</button>'+
-    '</div>';
-  el.querySelectorAll(".status-btn").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const s = btn.getAttribute("data-status");
-      if(DATA.study[k]===s) delete DATA.study[k]; else DATA.study[k] = s;
-      saveData();
-      if(s==="present") sound("present"); else if(s==="absent") sound("absent"); else sound("neutral");
-      renderStudyView(); renderAllSummaries();
+    bodyHtml;
+
+  if(studyDay){
+    el.querySelectorAll(".status-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const s = btn.getAttribute("data-status");
+        if(DATA.study[k]===s) delete DATA.study[k]; else DATA.study[k] = s;
+        saveData();
+        if(s==="present") sound("present"); else if(s==="absent") sound("absent"); else sound("neutral");
+        renderStudyView(); renderAllSummaries();
+      });
     });
-  });
+  }
   const prevBtn = document.getElementById("studyPrev");
   const nextBtn = document.getElementById("studyNext");
   if(prevBtn) prevBtn.addEventListener("click", ()=>{ sound("tap"); viewingStudyDate = addDays(d,-1); renderStudyTodayCard(); });
@@ -1068,7 +1087,7 @@ function renderStatsView(){
     const d = addDays(weekStart,i);
     const k = dateKey(d);
     const v = DATA.study[k];
-    const h = v==="present" ? 2 : 0;
+    const h = (isStudyDay(d) && v==="present") ? 2 : 0;
     hours.push(h);
   }
   hours.forEach((h,i)=>{
