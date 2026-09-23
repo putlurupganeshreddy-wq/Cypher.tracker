@@ -141,6 +141,9 @@ header.top{
   background:linear-gradient(135deg, var(--accent), #8B7CFF 120%);
   color:#fff; border:none; position:relative; overflow:hidden;
 }
+.hero-card.study{
+  background:linear-gradient(135deg, #7C6FE0, #B79BD6 120%);
+}
 .hero-card .label{font-size:13px; opacity:.85; font-weight:600; margin-bottom:6px;}
 .hero-card .big{font-size:46px; font-weight:800; font-family:'Sora',sans-serif; line-height:1;}
 .hero-row{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;}
@@ -344,18 +347,28 @@ input[type=range]{width:100%; accent-color:var(--accent);}
     <div class="section-title first">Subject-wise attendance</div>
     <div class="grid grid-2" id="dashSubjects"></div>
 
-    <div class="grid grid-2" style="margin-top:16px;">
-      <div class="card fade-in">
-        <div class="label" style="font-size:12.5px;color:var(--ink-soft);font-weight:700;">🌙 NIGHT STUDY</div>
-        <div class="big" style="font-size:30px;font-family:'Sora',sans-serif;font-weight:800;margin-top:6px;" id="dashStudyPct">—</div>
-        <div style="font-size:12px;color:var(--ink-soft);margin-top:4px;" id="dashStudyHours">0h completed</div>
-      </div>
-      <div class="card fade-in">
-        <div class="label" style="font-size:12.5px;color:var(--ink-soft);font-weight:700;">TODAY'S PROGRESS</div>
-        <div style="margin-top:8px; font-size:13px; line-height:1.9;">
-          <div>🏫 Classes: <b id="dashTodayClass">—</b></div>
-          <div>📖 Study: <b id="dashTodayStudy">—</b></div>
+    <div class="section-title">Night study</div>
+    <div class="card hero-card study fade-in">
+      <div class="hero-row">
+        <div>
+          <div class="label">🌙 NIGHT STUDY</div>
+          <div class="big" id="dashStudyPctBig">—</div>
         </div>
+        <div class="ring-wrap"><svg id="dashStudyRing" viewBox="0 0 100 100" width="96" height="96"></svg><div class="ring-label" id="dashStudyRingLabel"></div></div>
+      </div>
+      <div class="hero-stats">
+        <div><b id="dashStudyPresent">0</b>Present</div>
+        <div><b id="dashStudyAbsent">0</b>Absent</div>
+        <div><b id="dashStudyWorking">0</b>Working</div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;opacity:.85;" id="dashStudyHours">0h completed · 0h missed</div>
+    </div>
+
+    <div class="card fade-in" style="margin-top:16px;">
+      <div class="label" style="font-size:12.5px;color:var(--ink-soft);font-weight:700;">TODAY'S PROGRESS</div>
+      <div style="margin-top:8px; font-size:13px; line-height:1.9;">
+        <div>🏫 Classes: <b id="dashTodayClass">—</b></div>
+        <div>📖 Study: <b id="dashTodayStudy">—</b></div>
       </div>
     </div>
 
@@ -744,7 +757,13 @@ function renderDashboard(){
   });
 
   const st = computeStudy();
-  document.getElementById("dashStudyPct").textContent = st.pct==null ? "No data yet" : st.pct+"%";
+  document.getElementById("dashStudyPctBig").textContent = st.pct==null ? "No data yet" : st.pct+"%";
+  document.getElementById("dashStudyRing").innerHTML = ringSVG(st.pct, 96, 9, "#ffffff");
+  document.getElementById("dashStudyRingLabel").textContent = st.pct==null ? "—" : st.pct+"%";
+  document.getElementById("dashStudyRingLabel").style.color = "#fff";
+  document.getElementById("dashStudyPresent").textContent = st.present;
+  document.getElementById("dashStudyAbsent").textContent = st.absent;
+  document.getElementById("dashStudyWorking").textContent = st.working;
   document.getElementById("dashStudyHours").textContent = st.completedH+"h completed · "+st.missedH+"h missed";
 
   const todayKey = dateKey(new Date());
