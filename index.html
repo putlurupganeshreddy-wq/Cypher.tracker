@@ -176,6 +176,15 @@ header.top{
 .status-btn.noclass.on{background:var(--gray-soft); border-color:var(--gray); color:var(--gray-text);}
 .status-btn.nostudy.on{background:var(--gray-soft); border-color:var(--gray); color:var(--gray-text);}
 .status-btn[disabled]{opacity:.55; cursor:default;}
+.type-btn{
+  flex:1; border:1.5px solid var(--line); background:var(--surface-2); color:var(--ink-soft);
+  padding:10px 6px; border-radius:var(--radius-sm); font-size:11px; font-weight:700; cursor:pointer;
+  transition:transform .1s ease, background .15s ease, border-color .15s ease, color .15s ease;
+  text-align:center; line-height:1.35;
+}
+.type-btn:active{transform:scale(.94);}
+.type-btn.on{background:var(--blue-soft); border-color:var(--accent); color:var(--accent-ink);}
+:root[data-theme="dark"] .type-btn.on{color:var(--blue-text);}
 
 .slot-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:10px; box-shadow:var(--shadow);}
 .slot-top{display:flex; align-items:center; justify-content:space-between; gap:10px;}
@@ -464,7 +473,7 @@ input[type=range]{width:100%; accent-color:var(--accent);}
     <div class="section-title">Holidays</div>
     <div class="card fade-in">
       <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:12px;">
-        Mark festival or long holiday dates — Dussehra, term breaks, and so on. Those dates are then treated as no-class days, just like Sunday.
+        Mark festival or long holiday dates — Dussehra, term breaks, and so on.
       </div>
       <input type="text" id="holidayLabel" placeholder="Holiday name (e.g. Dussehra)"
         style="width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:13px;margin-bottom:10px;">
@@ -479,6 +488,12 @@ input[type=range]{width:100%; accent-color:var(--accent);}
           <input type="date" id="holidayEnd"
             style="width:100%;padding:11px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:13px;margin-top:4px;">
         </div>
+      </div>
+      <label style="font-size:11px;color:var(--ink-faint);font-weight:600;display:block;margin-bottom:6px;">Type</label>
+      <div style="display:flex;gap:8px;margin-bottom:14px;" id="holidayTypeRow">
+        <button type="button" class="type-btn on" data-type="both">No Class<br>+ No Study</button>
+        <button type="button" class="type-btn" data-type="noclass">No Class<br>Only</button>
+        <button type="button" class="type-btn" data-type="nostudy">No Study<br>Only</button>
       </div>
       <button class="btn-primary" id="addHolidayBtn" style="width:100%;">Add Holiday</button>
       <div id="holidayMsg" style="margin-top:8px;font-size:12px;color:var(--ink-soft);"></div>
@@ -564,10 +579,23 @@ const ALL_SUBJECTS = ["PHYSICS","CHEMISTRY","MATHS","BIOLOGY","ENGLISH","TELUGU"
 const MOTIVATIONS = ["Today is yours. Don't waste time.","Small progress every day.","Stay consistent.","Your goal is waiting.","Focus today. Results come later."];
 
 const STORE_KEY = "cypher_data_v1";
+function migrateHolidays(holidays){
+  if(!holidays) return {};
+  Object.keys(holidays).forEach(k=>{
+    const v = holidays[k];
+    if(typeof v === "string"){ holidays[k] = {label:v, type:"both"}; }
+    else if(v && !v.type){ v.type = "both"; }
+  });
+  return holidays;
+}
 function loadData(){
   try{
     const raw = localStorage.getItem(STORE_KEY);
-    if(raw) return JSON.parse(raw);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      parsed.holidays = migrateHolidays(parsed.holidays);
+      return parsed;
+    }
   }catch(e){}
   return {attendance:{}, study:{}, theme:null, sound:true, goal:75, firstLaunch:true, holidays:{}};
 }
@@ -598,10 +626,13 @@ let viewingDate = new Date(); // for day-view navigation
 let currentView = "dashboard";
 
 /* ===================== AGGREGATION ===================== */
-function isHoliday(d){ return DATA.holidays[dateKey(d)] || null; }
-function isStudyDay(d){ const dow = d.getDay(); return dow>=1 && dow<=5 && !isHoliday(d); }
+const HOLIDAY_TYPE_LABELS = {both:"No Class + No Study", noclass:"No Class Only", nostudy:"No Study Only"};
+function getHoliday(d){ return DATA.holidays[dateKey(d)] || null; }
+function isNoClassHoliday(d){ const h = getHoliday(d); return !!h && (h.type==="both" || h.type==="noclass"); }
+function isNoStudyHoliday(d){ const h = getHoliday(d); return !!h && (h.type==="both" || h.type==="nostudy"); }
+function isStudyDay(d){ const dow = d.getDay(); return dow>=1 && dow<=5 && !isNoStudyHoliday(d); }
 function getDayTimetable(d){
-  if(isHoliday(d)) return [];
+  if(isNoClassHoliday(d)) return [];
   return TIMETABLE[d.getDay()] || [];
 }
 
@@ -796,9 +827,10 @@ function labelForStudy(st){
 
 function renderGoalCard(el, agg, totalPct){
   const now = new Date();
-  const holidayName = isHoliday(now);
-  if(now.getDay()===0 || holidayName){
-    const label = holidayName ? ("🎉 HOLIDAY — "+escapeHtml(holidayName).toUpperCase()) : "SUNDAY — NO REGULAR CLASSES";
+  const holiday = getHoliday(now);
+  const noClassToday = isNoClassHoliday(now);
+  if(now.getDay()===0 || noClassToday){
+    const label = noClassToday ? ("🎉 HOLIDAY — "+escapeHtml(holiday.label).toUpperCase()) : "SUNDAY — NO REGULAR CLASSES";
     el.innerHTML = '<b style="display:block;margin-bottom:6px;">'+label+'</b>'+
       '<div style="color:var(--ink-soft);font-size:13.5px;line-height:1.6;">Your goal does not take a day off. Use your time wisely.</div>';
     return;
@@ -890,7 +922,7 @@ function renderDayView(){
   const tt = getDayTimetable(d);
   const today = new Date();
   const isToday = sameDay(d, today);
-  const holidayName = isHoliday(d);
+  const holiday = getHoliday(d);
 
   let html = '<div class="day-header">'+
     '<button class="arrow" id="dayPrev">‹</button>'+
@@ -898,14 +930,17 @@ function renderDayView(){
     '<button class="arrow" id="dayNext">›</button></div>';
 
   if(tt.length===0){
-    if(holidayName){
-      html += '<div class="empty-note">🎉 HOLIDAY — '+escapeHtml(holidayName).toUpperCase()+'<br><br>No classes scheduled.</div>';
+    if(holiday){
+      html += '<div class="empty-note">🎉 HOLIDAY — '+escapeHtml(holiday.label).toUpperCase()+'<br><br>No classes scheduled.</div>';
     } else if(d.getDay()===0){
       html += '<div class="empty-note">SUNDAY — NO CLASS DAY<br><br>No classes scheduled.</div>';
     } else {
       html += '<div class="empty-note">No classes scheduled.</div>';
     }
   } else {
+    if(holiday && holiday.type === "nostudy"){
+      html += '<div class="chip" style="width:100%;margin-bottom:12px;text-align:left;padding:12px 14px;">🌙 No study tonight — <b>'+escapeHtml(holiday.label)+'</b></div>';
+    }
     const rec = DATA.attendance[k] || {};
     tt.forEach((slot,idx)=>{
       if(slot.s==="NO CLASS"){
@@ -999,9 +1034,9 @@ function renderStudyView(){
     const row = document.createElement("div");
     row.className = "weekrow";
     let label, color;
-    const holidayName = isHoliday(d);
+    const holiday = getHoliday(d);
     if(!isStudyDay(d)){
-      const prefix = holidayName ? (escapeHtml(holidayName)+" · ") : "";
+      const prefix = holiday ? (escapeHtml(holiday.label)+" · ") : "";
       label = prefix+"No Study"; color = "var(--ink-soft)";
     } else {
       const v = DATA.study[k];
@@ -1023,11 +1058,11 @@ function renderStudyTodayCard(){
   const status = DATA.study[k];
   const isToday = sameDay(d,new Date());
   const studyDay = isStudyDay(d);
-  const holidayName = isHoliday(d);
+  const holiday = getHoliday(d);
 
   let bodyHtml;
   if(!studyDay){
-    const reason = holidayName ? ("🎉 "+escapeHtml(holidayName)) : (d.getDay()===0 ? "Sunday" : "Saturday");
+    const reason = holiday ? ("🎉 "+escapeHtml(holiday.label)) : (d.getDay()===0 ? "Sunday" : "Saturday");
     bodyHtml =
       '<div style="text-align:center;font-weight:700;font-size:15px;margin-bottom:4px;">🌙 NIGHT STUDY</div>'+
       '<div style="text-align:center;color:var(--ink-soft);font-size:12.5px;margin-bottom:14px;">'+reason+' — no study day</div>'+
@@ -1133,18 +1168,18 @@ function renderSettingsView(){
   renderHolidayList();
 }
 
-/* group consecutive same-label holiday dates into ranges for display */
+/* group consecutive same-label-and-type holiday dates into ranges for display */
 function groupHolidays(){
   const entries = Object.keys(DATA.holidays).sort();
   const groups = [];
   let cur = null;
   entries.forEach(k=>{
-    const label = DATA.holidays[k];
-    if(cur && cur.label===label && dateKey(addDays(keyToDate(cur.end),1))===k){
+    const h = DATA.holidays[k];
+    if(cur && cur.label===h.label && cur.type===h.type && dateKey(addDays(keyToDate(cur.end),1))===k){
       cur.end = k;
     } else {
       if(cur) groups.push(cur);
-      cur = {label, start:k, end:k};
+      cur = {label:h.label, type:h.type || "both", start:k, end:k};
     }
   });
   if(cur) groups.push(cur);
@@ -1162,8 +1197,10 @@ function renderHolidayList(){
     const rangeText = g.start===g.end
       ? fmtShort(keyToDate(g.start))
       : (fmtShort(keyToDate(g.start))+' – '+fmtShort(keyToDate(g.end)));
+    const typeLabel = HOLIDAY_TYPE_LABELS[g.type] || HOLIDAY_TYPE_LABELS.both;
     return '<div class="weekrow"><span><b style="font-weight:700;">'+escapeHtml(g.label)+'</b><br>'+
-      '<span style="font-size:11px;color:var(--ink-soft);">'+rangeText+'</span></span>'+
+      '<span style="font-size:11px;color:var(--ink-soft);">'+rangeText+'</span><br>'+
+      '<span style="font-size:10.5px;font-weight:700;color:var(--accent-ink);">'+typeLabel+'</span></span>'+
       '<button class="icon-btn holiday-remove" data-start="'+g.start+'" data-end="'+g.end+'" style="width:30px;height:30px;font-size:13px;">✕</button></div>';
   }).join("");
   el.querySelectorAll(".holiday-remove").forEach(btn=>{
@@ -1283,6 +1320,14 @@ document.getElementById("soundSwitch").addEventListener("click", ()=>{
 document.getElementById("themeSwitch").addEventListener("click", ()=>{
   document.getElementById("themeToggle").click();
 });
+let selectedHolidayType = "both";
+document.querySelectorAll("#holidayTypeRow .type-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    sound("tap");
+    selectedHolidayType = btn.getAttribute("data-type");
+    document.querySelectorAll("#holidayTypeRow .type-btn").forEach(b=>b.classList.toggle("on", b===btn));
+  });
+});
 document.getElementById("addHolidayBtn").addEventListener("click", ()=>{
   const labelInput = document.getElementById("holidayLabel");
   const startInput = document.getElementById("holidayStart");
@@ -1299,7 +1344,7 @@ document.getElementById("addHolidayBtn").addEventListener("click", ()=>{
   if((endD.getTime() - startD.getTime()) / 86400000 > 60){ msg.textContent = "That's over 60 days — please add shorter ranges."; msg.style.color = "var(--red-text)"; return; }
   let d = startD, count = 0;
   while(d.getTime() <= endD.getTime()){
-    DATA.holidays[dateKey(d)] = label;
+    DATA.holidays[dateKey(d)] = {label, type: selectedHolidayType};
     d = addDays(d, 1);
     count++;
   }
@@ -1372,7 +1417,7 @@ document.getElementById("importFile").addEventListener("change", (e)=>{
           theme: incoming.theme !== undefined ? incoming.theme : DATA.theme,
           sound: incoming.sound !== undefined ? incoming.sound : DATA.sound,
           goal: incoming.goal !== undefined ? incoming.goal : DATA.goal,
-          holidays: incoming.holidays || {},
+          holidays: migrateHolidays(incoming.holidays || {}),
           firstLaunch: false
         };
         saveData();
